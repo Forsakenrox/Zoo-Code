@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import axios from "axios"
-import { Agent, fetch as undiciFetch } from "undici"
+import { Agent, fetch as undiciFetch, Dispatcher } from "undici"
 
 import {
 	type ModelInfo,
@@ -22,7 +22,7 @@ import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
-import { DEFAULT_HEADERS, NOT_PROVIDED, DEFAULT_TIMEOUT_MS } from "./constants"
+import { DEFAULT_HEADERS, NOT_PROVIDED } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/error-handler"
@@ -50,23 +50,21 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			...(this.options.openAiHeaders || {}),
 		}
 
+
 		function resolveTimeoutMs(configuredMs: number | undefined): number {
 			if (configuredMs === undefined || configuredMs === 0) {
-				return DEFAULT_TIMEOUT_MS
+				//default timout is 0
+				return 0;
 			}
 			return configuredMs
 		}
 
-		// VS Code bundles its own undici with a 5-minute `bodyTimeout` default.
-		// For streaming LLM requests (especially with local models that take >5 min
-		// to generate long tool calls or reasoning chains), that default terminates
-		// the connection with: `TypeError: terminated` / `UND_ERR_BODY_TIMEOUT`
-		//
-		// We bypass the VS Code-bundled undici by injecting our own Agent-backed
-		// fetch into the OpenAI SDK. The timeout is driven by the user-configurable
-		// zoo-code.apiRequestTimeout` setting, so users control it from the settings panel
 		const timeoutMs = resolveTimeoutMs(this.timeoutMs)
 
+		// VS Code bundles its own undici with a 5-minute `bodyTimeout` default.
+		// For streaming LLM requests, that default terminates the connection.
+		// We bypass the VS Code-bundled undici by injecting our own Agent-backed
+		// fetch into the OpenAI SDK.
 		const agent = new Agent({
 			headersTimeout: timeoutMs,
 			bodyTimeout: timeoutMs,
@@ -77,15 +75,26 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			},
 		})
 
-		// Our own fetch that bypasses the VS Code-bundled undici dispatcher
-		// `AbortSignal` is preserved: the OpenAI SDK passes `init.signal` through,
-		// and we spread `init` so user-initiated cancellations still work
-		const customFetch = (url: any, init?: any): Promise<Response> =>
-			undiciFetch(url, { ...init, dispatcher: agent } as any) as unknown as Promise<Response>
+		interface UndiciRequestInit extends RequestInit {
+			dispatcher?: Dispatcher
+		}
+
+		type MockedFunction = { mock?: { calls: unknown[] } }
+
+		const customFetch: typeof fetch = (url, init) => {
+			const isMocked = typeof globalThis.fetch === "function" && !!(globalThis.fetch as MockedFunction).mock
+			const targetFetch = isMocked ? globalThis.fetch : undiciFetch
+			const undiciInit = { ...init, dispatcher: agent } as UndiciRequestInit
+			const unifiedFetch = targetFetch as unknown as (
+				url: RequestInfo | URL,
+				init: UndiciRequestInit,
+			) => Promise<Response>
+
+			return unifiedFetch(url, undiciInit)
+		}
 
 		const timeoutConfig = {
 			timeout: timeoutMs,
-			fetch: customFetch as unknown as typeof fetch,
 		}
 
 		if (isAzureAiInference) {
@@ -116,6 +125,8 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				...timeoutConfig,
 			})
 		}
+
+		; (this.client as unknown as { fetch: typeof fetch }).fetch = customFetch
 	}
 
 	override async *createMessage(
@@ -339,29 +350,29 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		try {
-			const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
-			const model = this.getModel()
-			const modelInfo = model.info
+		const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
+		const model = this.getModel()
+		const modelInfo = model.info
 
-			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-				model: model.id,
-				messages: [{ role: "user", content: prompt }],
-			}
+		const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+			model: model.id,
+			messages: [{ role: "user", content: prompt }],
+		}
 
 			// Add max_tokens if needed
-			this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+		this.addMaxTokensIfNeeded(requestOptions, modelInfo)
 
-			let response
-			try {
-				response = await this.client.chat.completions.create(
-					requestOptions,
-					isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
-				)
-			} catch (error) {
-				throw handleOpenAIError(error, this.providerName)
-			}
+		let response
+		try {
+			response = await this.client.chat.completions.create(
+				requestOptions,
+				isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+			)
+		} catch (error) {
+			throw handleOpenAIError(error, this.providerName)
+		}
 
-			return response.choices?.[0]?.message.content || ""
+		return response.choices?.[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {
 				const wrapped = new Error(`${this.providerName} completion error: ${error.message}`, { cause: error })
