@@ -50,11 +50,10 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			...(this.options.openAiHeaders || {}),
 		}
 
-
 		function resolveTimeoutMs(configuredMs: number | undefined): number {
 			if (configuredMs === undefined || configuredMs === 0) {
-				//default timout is 0
 				return 0;
+				// return 60 * 60 * 1000;
 			}
 			return configuredMs
 		}
@@ -82,15 +81,13 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		type MockedFunction = { mock?: { calls: unknown[] } }
 
 		const customFetch: typeof fetch = (url, init) => {
-			const isMocked = typeof globalThis.fetch === "function" && !!(globalThis.fetch as MockedFunction).mock
-			const targetFetch = isMocked ? globalThis.fetch : undiciFetch
 			const undiciInit = { ...init, dispatcher: agent } as UndiciRequestInit
-			const unifiedFetch = targetFetch as unknown as (
+			const fetchImpl = undiciFetch as unknown as (
 				url: RequestInfo | URL,
 				init: UndiciRequestInit,
 			) => Promise<Response>
 
-			return unifiedFetch(url, undiciInit)
+			return fetchImpl(url, undiciInit)
 		}
 
 		const timeoutConfig = {
@@ -350,29 +347,29 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		try {
-		const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
-		const model = this.getModel()
-		const modelInfo = model.info
+			const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
+			const model = this.getModel()
+			const modelInfo = model.info
 
-		const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-			model: model.id,
-			messages: [{ role: "user", content: prompt }],
-		}
+			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+				model: model.id,
+				messages: [{ role: "user", content: prompt }],
+			}
 
 			// Add max_tokens if needed
-		this.addMaxTokensIfNeeded(requestOptions, modelInfo)
+			this.addMaxTokensIfNeeded(requestOptions, modelInfo)
 
-		let response
-		try {
-			response = await this.client.chat.completions.create(
-				requestOptions,
-				isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
-			)
-		} catch (error) {
-			throw handleOpenAIError(error, this.providerName)
-		}
+			let response
+			try {
+				response = await this.client.chat.completions.create(
+					requestOptions,
+					isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+				)
+			} catch (error) {
+				throw handleOpenAIError(error, this.providerName)
+			}
 
-		return response.choices?.[0]?.message.content || ""
+			return response.choices?.[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {
 				const wrapped = new Error(`${this.providerName} completion error: ${error.message}`, { cause: error })
