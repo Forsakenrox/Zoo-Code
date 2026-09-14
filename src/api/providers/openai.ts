@@ -81,16 +81,15 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			dispatcher?: Dispatcher
 		}
 
-		type MockedFunction = { mock?: { calls: unknown[] } }
-
 		const customFetch: typeof fetch = (url, init) => {
 			const undiciInit = { ...init, dispatcher: agent } as UndiciRequestInit
-			const fetchImpl = undiciFetch as unknown as (
-				url: RequestInfo | URL,
-				init: UndiciRequestInit,
-			) => Promise<Response>
+			return globalThis.fetch(url, undiciInit as RequestInit)
+			// const fetchImpl = undiciFetch as unknown as (
+			// 	url: RequestInfo | URL,
+			// 	init: UndiciRequestInit,
+			// ) => Promise<Response>
 
-			return fetchImpl(url, undiciInit)
+			// return fetchImpl(url, undiciInit)
 		}
 
 		const timeoutConfig = {
