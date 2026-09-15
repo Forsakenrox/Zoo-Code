@@ -79,7 +79,7 @@ function getRequestBody(init?: RequestInit):
 }
 
 function installDeepSeekRequestCapture(capture: CapturedDeepSeekRequest[], baseUrl: string): () => void {
-	const undiciModule = undici as UndiciModule
+	const undiciModule = undici as unknown as UndiciModule
 	const originalFetch = undiciModule.fetch
 	const targetOrigin = new URL(baseUrl).origin
 
