@@ -74,9 +74,6 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
-      undici:
-        specifier: 6.28.0
-        version: 6.28.0
 
   apps/cli:
     dependencies:
@@ -198,6 +195,9 @@ importers:
       rimraf:
         specifier: 6.0.1
         version: 6.0.1
+      undici:
+        specifier: ^6.21.3
+        version: 6.28.0
 
   packages/build:
     devDependencies:
