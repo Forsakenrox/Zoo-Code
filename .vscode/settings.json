@@ -13,20 +13,5 @@
 	// Surface invisible (zero-width) and ambiguous/homoglyph Unicode in the
 	// editor. Pairs with the code-qa.yml invisible-chars CI check.
 	"editor.unicodeHighlight.invisibleCharacters": true,
-	"editor.unicodeHighlight.ambiguousCharacters": true,
-	"workbench.colorCustomizations": {
-		"editor.selectionBackground": "#135564ef",
-		"editor.selectionHighlightBackground": "#13556496",
-		"activityBar.background": "#A02C18",
-		"titleBar.activeBackground": "#DE3F24",
-		"titleBar.activeForeground": "#FEF9F9",
-		"titleBar.inactiveBackground": "#A02C18",
-		"titleBar.inactiveForeground": "#FEF9F9",
-		"statusBar.background": "#A02C18",
-		"statusBar.foreground": "#FEF9F9",
-		"statusBar.debuggingBackground": "#A02C18",
-		"statusBar.debuggingForeground": "#FEF9F9",
-		"statusBar.noFolderBackground": "#A02C18",
-		"statusBar.noFolderForeground": "#FEF9F9"
-	}
+	"editor.unicodeHighlight.ambiguousCharacters": true
 }
