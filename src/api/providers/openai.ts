@@ -83,13 +83,13 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 
 		const customFetch: typeof fetch = (url, init) => {
 			const undiciInit = { ...init, dispatcher: agent } as UndiciRequestInit
-			return globalThis.fetch(url, undiciInit as RequestInit)
-			// const fetchImpl = undiciFetch as unknown as (
-			// 	url: RequestInfo | URL,
-			// 	init: UndiciRequestInit,
-			// ) => Promise<Response>
+			// return globalThis.fetch(url, undiciInit as RequestInit)
+			const fetchImpl = undiciFetch as unknown as (
+				url: RequestInfo | URL,
+				init: UndiciRequestInit,
+			) => Promise<Response>
 
-			// return fetchImpl(url, undiciInit)
+			return fetchImpl(url, undiciInit)
 		}
 
 		const timeoutConfig = {

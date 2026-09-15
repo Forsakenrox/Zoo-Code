@@ -3,11 +3,19 @@ import * as assert from "assert"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
-
+import * as undici from "undici"
 import { RooCodeEventName, type ClineMessage } from "@roo-code/types"
 
 import { setDefaultSuiteTimeout } from "../test-utils"
 import { sleep, waitFor, waitUntilAborted } from "../utils"
+
+interface UndiciModule {
+	fetch: typeof fetch
+}
+
+interface UndiciRequestInit extends RequestInit {
+	dispatcher?: unknown
+}
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
 
@@ -71,10 +79,11 @@ function getRequestBody(init?: RequestInit):
 }
 
 function installDeepSeekRequestCapture(capture: CapturedDeepSeekRequest[], baseUrl: string): () => void {
-	const originalFetch = globalThis.fetch
+	const undiciModule = undici as UndiciModule
+	const originalFetch = undiciModule.fetch
 	const targetOrigin = new URL(baseUrl).origin
 
-	globalThis.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+	undiciModule.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
 		const url = getRequestUrl(input)
 
 		if (isUrlWithOrigin(url, targetOrigin) && isChatCompletionsUrl(url)) {
@@ -106,11 +115,12 @@ function installDeepSeekRequestCapture(capture: CapturedDeepSeekRequest[], baseU
 			capture.push(request)
 		}
 
-		return originalFetch.call(globalThis, input, init as RequestInit)
-	} as typeof globalThis.fetch
+		// Передаём init как есть (включая dispatcher из OpenAiHandler) оригинальному undici.fetch
+		return originalFetch.call(undiciModule, input, init as UndiciRequestInit)
+	}
 
 	return () => {
-		globalThis.fetch = originalFetch
+		undiciModule.fetch = originalFetch
 	}
 }
 
